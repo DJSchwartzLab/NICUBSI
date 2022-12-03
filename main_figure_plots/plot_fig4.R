@@ -14,7 +14,7 @@ library(lsmeans)
 # set the current working dir to the path of the GitHub repository
 setwd("/path/to/github/repo/NICUBSI/tables")
 
-# PLOT 3A
+# PLOT 4A
 metadata = read.csv("MasterMetadata_FINAL_GitHub.csv")
 
 species = read.table("211210_wide_metaphlanStandard_species_100k.txt", header=T, sep=" ")
@@ -120,7 +120,7 @@ full_df = rbind(first_5_freqs, second_5_freqs, third_5_freqs, fourth_5_freqs, fi
 full_df$range = factor(full_df$range, levels=c("-15 to -10", "-10 to -5", "-5 to 0", "0 to 5", "5 to 10", "10 to 15"))
 full_df$bin = factor(full_df$bin, levels=c("100-75", "74-50","49-25", "24-0"))
 
-# 3a
+# 4a
 ggplot(full_df, aes(x=range, y=freq)) +
   geom_bar(aes(fill=bin), color="black", width=0.9, stat="identity", position="stack") +
   scale_y_continuous(expand = expansion(mult = c(0.0, 0.0))) +
@@ -141,7 +141,7 @@ rownames(cast_full_df) = cast_full_df$bin
 cast_full_df = cast_full_df[, 2:ncol(cast_full_df)]
 chisq.test(cast_full_df)
 
-# plot and compute stats for 2b and 2c
+# plot and compute stats for 4b and 4c
 
 instrain_classes = read.delim("220424_genome_summary_removedunder100K.tsv")
 
@@ -202,7 +202,7 @@ cov_normalized_stats = lmer(cov_normalized_0to1~DPI+(1|Subject), data=instrain_c
 anova(cov_normalized_stats)
 post_hoc_corrected_stats = lsmeans(cov_normalized_stats, cov_normalized_0to1~DPI, adjust="BH")
 
-# plot 3B
+# plot 4B
 ggplot(instrain_classes, aes(x=DPI, y=cov_normalized_0to1)) +
   geom_vline(xintercept = 0, linetype="dashed", color="grey50") +
   geom_smooth(formula = y ~ x, se=T, color="red", size=1.5, level=0.95, fill="lightcoral") +
@@ -219,7 +219,7 @@ ggplot(instrain_classes, aes(x=DPI, y=cov_normalized_0to1)) +
   )
 
 ########################################################################################################################################################
-# 3D
+# 4D
 ########################################################################################################################################################
 
 genome_summary = read.delim("220424_genome_summary_removedunder100K.tsv")
@@ -278,7 +278,7 @@ ggplot(genome_summary[genome_summary$breadth > 0.1 ,], aes(x=log_breadth)) + # p
   )
 
 ########################################################################################################################################################
-# 3E
+# 4E
 ########################################################################################################################################################
 
 genome_summary$id = sapply(strsplit(as.character(genome_summary$sample), "_"), function(s) s[1] )
@@ -340,7 +340,7 @@ ggplot(sns_df, aes(x=sns_num)) + # 0 - 20 SNS
 
 
 ########################################################################################################################################################
-# 3C
+# 4C
 ########################################################################################################################################################
 
 # filter plotted subjects to only those who display sns < 20 at 1+ timepoints
@@ -378,7 +378,7 @@ combo_bin$wilcox_p = sapply(1:nrow(combo_bin), function(i){
 combo_bin$corrected_wilcox_p = pmin(1, combo_bin$wilcox_p * nrow(combo_bin))
 write.table(combo_bin, file="3C_pairwise_wilcox.tsv", sep="\t", row.names=F)
 
-# Plot 3C
+# Plot 4C
 ggplot(lumped_coverage_df, aes(x=dpi_bin, y=cov_normalized)) +
   geom_boxplot(fill="peachpuff2") +
   geom_jitter(width=0.05, alpha=0.4) +

@@ -14,7 +14,7 @@ setwd("/path/to/github/repo/NICUBSI/tables")
 # load case mapping
 case_mapping = read.csv("metagenomesmappedCaseisolates_COMBINED.csv")
 
-# plot 4A
+# plot 5A
 
 case_mapping$negative_log_breadth = -log10(1 - case_mapping$breadth)
 case_mapping$negative_log_breadth[is.infinite(case_mapping$negative_log_breadth)] = 7
@@ -39,7 +39,7 @@ ggplot(case_mapping, aes(x=negative_log_sns_rate, y=negative_log_breadth,)) +
     panel.border = element_rect(colour = "black", fill=NA, size=1)
   )
 
-# plot 4B
+# plot 5B
 
 case_mapping$breadth = as.numeric(as.character(case_mapping$breadth))
 case_mapping$SNS_count = as.numeric(as.character(case_mapping$SNS_count))
@@ -79,7 +79,7 @@ case_mapping$mg_subject_isolate_key = paste(case_mapping$metagenome_subject, cas
 case_mapping_order = case_mapping[order(case_mapping$breadth_sns_stat, decreasing=T),]
 case_mapping_unique = case_mapping[!duplicated(case_mapping$mg_subject_isolate_key),]
 
-# PLOT 4B
+# PLOT 5B
 ggplot(case_mapping_unique[case_mapping_unique$breadth > 0.5 & case_mapping_unique$case_to_case == F,], aes(x=family_fix, y=breadth_sns_stat,)) +
   geom_jitter(height=0, width=0.2, aes(color=breadth_sns_stat > 5)) +
   scale_color_manual(values=c("black", "#2b95ff")) +
