@@ -392,3 +392,100 @@ ggplot(lumped_coverage_df, aes(x=dpi_bin, y=cov_normalized)) +
     panel.border = element_rect(colour = "black", fill=NA, size=1)
   )
 
+########################################################################################################################################################
+# 4F
+########################################################################################################################################################
+InStrain <- read.delim("220424_genome_summary_removedunder100K.txt", header=TRUE)
+#Bin DPI timepoints into 5d bins
+bin = function(d){
+  if (d < -15){
+    "< -15"
+  }else if(d > 15){
+    ">15"
+  }else if(d <= -10){
+    "-15 to -10"
+  }else if(d <= -5){
+    "-10 to -5"
+  }else if(d <= 0){
+    "-5 to 0"
+  }else if(d <= 5){
+    "0 to 5"
+  }else if(d <= 10){
+    "5 to 10"
+  }else{
+    "10 to 15"
+  }
+}
+InStrain<-subset(InStrain,DPI<60)
+Enterobacteriaceae<-subset(InStrain, BSI_Family=="Enterobacteriaceae")
+Enterococcaceae<-subset(InStrain, BSI_Family=="Enterococcaceae")
+Staphylococcaceae<-subset(InStrain, BSI_Family=="Staphylococcaceae")
+Streptococcaceae<-subset(InStrain, BSI_Family=="Streptococcaceae")
+
+InStrain$FamilyBin<-paste(InStrain$BSI_Family,InStrain$dpi_bin)
+#Now, removing cases where popANI is 1, but breadth is <0.5 as these are likely falsely high ANI
+InStrainbreadth<-subset(InStrain, !(popANI_reference==1 & breadth <0.5))
+ggplot(InStrainbreadth, aes(x=dpi_bin, y=log1.popani, colour=BSI_Family))+geom_boxplot(outlier.shape=NA)+geom_point(position = position_jitterdodge(jitter.width = 0.1))+
+  theme_bw()+scale_x_discrete(limits=c("-15 to -10", "-10 to -5", "-5 to 0", "0 to 5", "5 to 10", "10 to 15"))+
+  theme(legend.text=element_text(size=12, face="bold"),legend.title=element_text(size=14, face="bold"),legend.position="top",
+        panel.grid.minor = element_blank(), panel.border = element_rect(colour = "black"), 
+        axis.text.x= element_text(size=12,angle=45,hjust=1,vjust=1,face="bold"),axis.title.x = element_text(size=14, face="bold"),
+        axis.title.y = element_text(size=14, face="bold",margin = margin(t = 0, r = 20, b = 0, l = 0)),
+        axis.text.y= element_text(size=12,face="bold"))+ylab("Log (1-ANI) to BSI isolate")+xlab("DPI")
+ggsave(file="Metagenomics/inStrain/220503_LogANIboxplotDPIbin-15to15removepopani1breadthbelow0.5.pdf")
+
+#Now, removing cases where popANI is 1, but breadth is <0.5 as these are likely falsely high ANI; lme
+Preinfection15breadthover0.5<-subset(preinfection15,!(popANI_reference==1 & breadth <0.5))
+fitlogpopANIpreinfection15breadthfilter<- lmer(log1.popani~BSI_Family+DPI+ (1|Subject), data=Preinfection15breadthover0.5)
+anova(fitlogpopANIpreinfection15breadthfilter)
+TukBSIfamilyfitlogpopANIpreinfection15breadthfilter<-lsmeans(fitlogpopANIpreinfection15breadthfilter, pairwise~BSI_Family, adjust="tukey")
+TukBSIfamilyfitlogpopANIpreinfection15breadthfilter
+# BSI_Family         lsmean    SE   df lower.CL upper.CL
+# Enterobacteriaceae   5.48 0.399 14.1     4.62     6.33
+# Enterococcaceae      6.30 0.712 10.1     4.71     7.88
+# Staphylococcaceae    2.05 0.451 13.9     1.08     3.01
+# Streptococcaceae     2.74 0.697 16.1     1.26     4.21
+
+#Degrees-of-freedom method: kenward-roger 
+#Confidence level used: 0.95 
+#contrast                               estimate    SE   df t.ratio p.value
+# Enterobacteriaceae - Enterococcaceae     -0.819 0.816 10.9  -1.004  0.7505
+# Enterobacteriaceae - Staphylococcaceae    3.431 0.603 14.1   5.693  0.0003
+# Enterobacteriaceae - Streptococcaceae     2.738 0.803 15.6   3.410  0.0175
+# Enterococcaceae - Staphylococcaceae       4.251 0.843 11.0   5.040  0.0018
+# Enterococcaceae - Streptococcaceae        3.557 0.996 12.5   3.570  0.0166
+# Staphylococcaceae - Streptococcaceae     -0.693 0.829 15.4  -0.836  0.8367
+
+#Degrees-of-freedom method: kenward-roger 
+#P value adjustment: tukey method for comparing a family of 4 estimates
+
+postinfection15breadthover0.5<-subset(postinfection15,!(popANI_reference==1 & breadth <0.5))
+fitlogpopANIpostinfection15breadthover0.5filter<- lmer(log1.popani~BSI_Family+DPI+ (1|Subject), data=postinfection15breadthover0.5)
+anova(fitlogpopANIpostinfection15breadthover0.5filter)
+TukBSIfamilyfitlogpopANIpostinfection15breadthover0.5filter<-lsmeans(fitlogpopANIpostinfection15breadthover0.5filter, pairwise~BSI_Family, adjust="tukey")
+TukBSIfamilyfitlogpopANIpostinfection15breadthover0.5filter
+# BSI_Family         lsmean    SE   df lower.CL upper.CL
+# Enterobacteriaceae   4.28 0.582 12.9     3.02     5.53
+# Enterococcaceae      5.85 1.074 10.0     3.46     8.25
+# Staphylococcaceae    3.59 0.696 14.7     2.11     5.08
+# Streptococcaceae     3.64 1.207 15.2     1.07     6.21
+
+#Degrees-of-freedom method: kenward-roger 
+#Confidence level used: 0.95 
+#contrast                               estimate    SE   df t.ratio p.value
+# Enterobacteriaceae - Enterococcaceae    -1.5772 1.221 10.6  -1.291  0.5871
+# Enterobacteriaceae - Staphylococcaceae   0.6861 0.907 13.9   0.757  0.8723
+# Enterobacteriaceae - Streptococcaceae    0.6338 1.341 14.8   0.473  0.9639
+# Enterococcaceae - Staphylococcaceae      2.2632 1.279 11.2   1.769  0.3366
+# Enterococcaceae - Streptococcaceae       2.2110 1.615 12.5   1.369  0.5395
+# Staphylococcaceae - Streptococcaceae    -0.0523 1.394 15.2  -0.037  1.0000
+
+#Degrees-of-freedom method: kenward-roger 
+#P value adjustment: tukey method for comparing a family of 4 estimates 
+
+#Evaluating linear mixed effect model on pre-infection by DPI bins and BSI family
+#fitlogpopANIpreinfection15breadthfilterbin<- lmer(log1.popani~FamilyBin+ (1|Subject), data=Preinfection15breadthover0.5)
+#anova(fitlogpopANIpreinfection15breadthfilterbin)
+#TukBSIfamilyfitlogpopANIpreinfection15breadthfilterbin<-lsmeans(fitlogpopANIpreinfection15breadthfilterbin, pairwise~FamilyBin, adjust="tukey")
+#TukBSIfamilyfitlogpopANIpreinfection15breadthfilterbin
+
