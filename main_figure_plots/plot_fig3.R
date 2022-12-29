@@ -37,7 +37,7 @@ genus_cont %>%
   scale_fill_manual(values = my_palette)#+
 
 
-#Figures 3B-F
+#Figures 3B-F and Extended Data Fig. 8
 
 #Combining our dataframe and Molly/Drew dataframes (run before changing sample to rownames)
 input_data_species <- read.delim("211210_wide_metaphlanStandard_species_100k.txt", header = TRUE) #The abundance table file
