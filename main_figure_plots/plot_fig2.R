@@ -14,11 +14,18 @@ species = read.table("211210_wide_metaphlanStandard_species_100k.txt", header=T,
 
 rownames(species) = species$Sample
 species = species[, grepl("s__", colnames(species))]
-diversity = data.frame(Sample=rownames(species), shannon=as.numeric(vegan::diversity(species, "shannon")), simpson=as.numeric(vegan::diversity(species, "simpson")))
+apply(species, 1, function(r) sum(r > 0) )
 
-diversity$DPI = master_data$DPI1[match(diversity$Sample, master_data$Sequence.name)]
-diversity$exp = master_data$exp_type[match(diversity$Sample, master_data$Sequence.name)]
-diversity$bug = master_data$culture_bug1[match(diversity$Sample, master_data$Sequence.name)]
+diversity = data.frame(
+  Sample=rownames(species), 
+  shannon=as.numeric(vegan::diversity(species, "shannon")), 
+  simpson=as.numeric(vegan::diversity(species, "simpson")), 
+  richness=apply(species, 1, function(r) sum(r > 0) )
+)
+
+diversity$DPI = metadata$DPI1[match(diversity$Sample, metadata$Sequence.name)]
+diversity$exp = metadata$exp_type[match(diversity$Sample, metadata$Sequence.name)]
+diversity$bug = metadata$culture_bug1[match(diversity$Sample, metadata$Sequence.name)]
 
 diversity$id = sapply(strsplit(as.character(diversity$Sample), "_"), function(c) c[[1]][1])
 diversity$exp = factor(diversity$exp, levels=c("control", "experimental"))
@@ -44,10 +51,12 @@ bin = function(d){
 
 diversity$dpi_class = sapply(diversity$DPI, function(d) bin(d))
 diversity$group = paste(diversity$dpi_class, diversity$id)
+
 df_list = lapply(unique(as.character(diversity$group)), function(g) {
   df = diversity[diversity$group == g,]
   df$shannon = mean(df$shannon)
   df$simpson = mean(df$simpson)
+  df$richness = mean(df$richness)
   df[1 ,]
 })
 
@@ -57,6 +66,22 @@ lumped_div_df$dpi_class = factor(lumped_div_df$dpi_class, levels=c("-15 to -10",
                                                                    "0 to 5", "5 to 10", "10 to 15"))
 # Plot 2A
 ggplot(lumped_div_df, aes(x=dpi_class, y=shannon, fill=exp)) +
+  geom_boxplot(position=position_dodge(0.7), width=0.5, outlier.shape=NA) +
+  geom_jitter(position=position_jitterdodge(0.1), alpha=0.4) +
+  theme(
+    axis.text.y = element_text(size=10),
+    axis.text.x = element_text(size=10, angle=90, hjust=1, vjust=0.5),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  ) +
+  scale_fill_manual(values=c("gray26", "red3"))
+
+# Plot 2A
+dim(lumped_div_df[lumped_div_df$dpi_class == "5 to 10" & lumped_div_df$bug == "Control",])
+ggplot(lumped_div_df, aes(x=dpi_class, y=richness, fill=exp)) +
   geom_boxplot(position=position_dodge(0.7), width=0.5, outlier.shape=NA) +
   geom_jitter(position=position_jitterdodge(0.1), alpha=0.4) +
   theme(
@@ -98,6 +123,7 @@ bugs = c("s__Enterococcus_faecalis", "s__Serratia_marcescens", "s__Escherichia_c
 # SANITY CHECK! AND I AM SANE, FOR THE MOMENT
 paste(bugs, metadata$culture_bug1[match(exp_ids, metadata$Subject)])
 
+exp_data = data.frame(ids=exp_ids, bug=bugs)
 species$bug_select = sapply(1:dim(species)[1], function(i){ # retrieving bug relative abundance
   if(species[i, c("exp_type")] == "control"){
     bug = exp_data$bug[match(species[i, c("exp_id")], exp_data$ids)][1]
