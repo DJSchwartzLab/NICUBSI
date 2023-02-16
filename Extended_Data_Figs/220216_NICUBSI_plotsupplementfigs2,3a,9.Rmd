@@ -1,0 +1,463 @@
+---
+title: "NICUBSI_DJS"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir ="/Users/drewschwartz/Box Sync/Neonate BSI/")
+```
+
+```{r}
+library(ggplot2)
+library(vegan)
+library(plyr)
+library(dplyr)
+library(viridis)
+library(reshape2)
+library(ape)
+library(FactoMineR)
+library(RColorBrewer)
+library(multcomp)
+library(plotrix)
+library(lme4)
+library(lsmeans)
+library(data.table)
+library(sjPlot)
+library(Maaslin2)
+library(ggExtra)
+
+metadata <- read.delim("Metadata/MasterMetadata_FINAL.csv",header=TRUE,sep = ',')
+metadata<-subset(metadata, Post.processed_reads>100000)
+abx_genes = read.delim("Metagenomics/Shortbred/shortbred_mg.tsv")
+species = read.table("Metagenomics/metaphlan3/211210_wide_metaphlanStandard_species.txt", header=T, sep="")
+rownames(species) = species$Sample
+
+#Bin DPI timepoints into 5d bins
+bin = function(d){
+  if (d < -15){
+    "< -15"
+  }else if(d > 15){
+    ">15"
+  }else if(d <= -10){
+    "-15 to -10"
+  }else if(d <= -5){
+    "-10 to -5"
+  }else if(d <= 0){
+    "-5 to 0"
+  }else if(d <= 5){
+    "0 to 5"
+  }else if(d <= 10){
+    "5 to 10"
+  }else{
+    "10 to 15"
+  }
+}
+```
+```{r}
+#REVIEWER QUESTION about ARGs to ampicillin, gentamicin, vancomycin to plot Fig. S2#
+#perform on the wide table first beta lactam resistance genes
+abx_geneswide<-abx_genes[-c(2,5:7)]
+abx_geneswide<-reshape(abx_geneswide, idvar="sample", timevar = "gene", direction ="wide")
+rownames(abx_geneswide)=abx_geneswide$sample
+abx_geneswide$sample=NULL
+betalactamwide<-abx_geneswide[,grep(pattern="beta-lact", colnames(abx_geneswide), ignore.case=TRUE)]
+betalactamwide[is.na(betalactamwide)] <- 0
+betalactamwide$sum<-rowSums(betalactamwide)
+betalactamwide$Sequence.name<-row.names(betalactamwide)
+betalactamwidemetadata<-join(metadata,betalactamwide, by ="Sequence.name")
+
+betalactamwidemetadatapreBSI<-subset(betalactamwidemetadata, DPI1<=0)
+betalactamwidemetadatapreBSIlme<- lmer(sum~exp_type+(1|Subject), data=betalactamwidemetadatapreBSI)
+anova(betalactamwidemetadatapreBSIlme)
+# Analysis of Variance Table
+#          npar Sum Sq Mean Sq F value
+# exp_type    1 217018  217018  0.0273
+TukfitbetalactamwidemetadatapreBSIlme<-lsmeans(betalactamwidemetadatapreBSIlme, pairwise~exp_type, adjust="Tukey")
+TukfitbetalactamwidemetadatapreBSIlme
+ # contrast               estimate   SE df t.ratio p.value
+ # control - experimental     -210 1271 51  -0.165  0.8696
+
+betalactamwidemetadatapreBSIlmebug<- lmer(sum~Bug1_Family+(1|Subject), data=betalactamwidemetadatapreBSI)
+anova(betalactamwidemetadatapreBSIlmebug)
+#          npar   Sum Sq  Mean Sq F value
+# Bug1_Family    4 45908682 11477170  1.4404
+TukfitbetalactamwidemetadatapreBSIlmebug<-lsmeans(betalactamwidemetadatapreBSIlmebug, pairwise~Bug1_Family, adjust="Tukey")
+TukfitbetalactamwidemetadatapreBSIlmebug
+# contrast                               estimate   SE   df t.ratio p.value
+#  Control - Enterobacteriaceae               1621 1714 48.7   0.946  0.8775
+#  Control - Enterococcaceae                  1323 3055 42.2   0.433  0.9924
+#  Control - Staphylococcaceae               -3694 1917 47.7  -1.927  0.3175
+#  Control - Streptococcaceae                  831 2576 45.5   0.322  0.9976
+#  Enterobacteriaceae - Enterococcaceae       -298 3343 43.1  -0.089  1.0000
+#  Enterobacteriaceae - Staphylococcaceae    -5315 2349 47.9  -2.263  0.1749
+#  Enterobacteriaceae - Streptococcaceae      -790 2912 46.1  -0.271  0.9988
+#  Enterococcaceae - Staphylococcaceae       -5017 3451 43.2  -1.454  0.5973
+#  Enterococcaceae - Streptococcaceae         -492 3857 43.1  -0.128  0.9999
+#  Staphylococcaceae - Streptococcaceae       4524 3036 45.9   1.490  0.5738
+
+ggplot(betalactamwidemetadatapreBSI, aes(y=sum, x=exp_type, fill=exp_type)) +
+  geom_boxplot() +
+  geom_jitter(width=0.05, alpha=0.5)+
+  theme(
+    axis.text = element_text(size=10),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+scale_y_log10()+scale_fill_manual(values=c("gray26", "red3"))
+ggsave(file="/Users/drewschwartz/Desktop/metagenomicARGsbyclasspreBSIbetalactam.pdf")
+
+ggplot(betalactamwidemetadatapreBSI, aes(y=sum, x=Bug1_Family, fill=Bug1_Family)) +
+  geom_boxplot() +
+  geom_jitter(width=0.05, alpha=0.5)+
+  theme(
+    axis.text = element_text(size=10),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+scale_y_log10()
+ggsave(file="/Users/drewschwartz/Desktop/metagenomicARGsbyclasspreBSIbetalactamBUGFAMILY.pdf")
+
+# Now aminoglycosides
+aminoglycosideswide<-abx_geneswide[,grep(pattern="amino", colnames(abx_geneswide), ignore.case=TRUE)]
+aminoglycosideswide[is.na(aminoglycosideswide)] <- 0
+aminoglycosideswide$sum<-rowSums(aminoglycosideswide)
+aminoglycosideswide$Sequence.name<-row.names(aminoglycosideswide)
+aminoglycosideswidemetadata<-join(metadata,aminoglycosideswide, by ="Sequence.name")
+
+#Subsetting just to before BSI
+aminoglycosideswidemetadatapreBSI<-subset(aminoglycosideswidemetadata, DPI1<=0)
+aminoglycosideswidemetadatapreBSIlme<- lmer(sum~exp_type+(1|Subject), data=aminoglycosideswidemetadatapreBSI)
+anova(aminoglycosideswidemetadatapreBSIlme)
+# Analysis of Variance Table
+#          npar Sum Sq Mean Sq F value
+# exp_type    1  41318   41318  0.7873
+TukfitaminoglycosideswidemetadatapreBSIlme<-lsmeans(aminoglycosideswidemetadatapreBSIlme, pairwise~exp_type, adjust="Tukey")
+TukfitaminoglycosideswidemetadatapreBSIlme
+# contrast               estimate   SE   df t.ratio p.value
+#  control - experimental     79.3 89.4 50.5   0.887  0.3793
+
+aminoglycosideswidemetadatapreBSIlmeBUG<- lmer(sum~Bug1_Family+(1|Subject), data=aminoglycosideswidemetadatapreBSI)
+anova(aminoglycosideswidemetadatapreBSIlmeBUG)
+#             npar Sum Sq Mean Sq F value
+# Bug1_Family    4 101041   25260  0.4822
+TukfitaminoglycosideswidemetadatapreBSIlmeBUG<-lsmeans(aminoglycosideswidemetadatapreBSIlmeBUG, pairwise~Bug1_Family, adjust="Tukey")
+TukfitaminoglycosideswidemetadatapreBSIlmeBUG
+# contrast                               estimate  SE   df t.ratio p.value
+#  Control - Enterobacteriaceae             140.90 127 48.4   1.114  0.7986
+#  Control - Enterococcaceae                 80.30 224 41.0   0.359  0.9963
+#  Control - Staphylococcaceae              -34.44 141 47.5  -0.243  0.9992
+#  Control - Streptococcaceae               142.66 190 44.9   0.753  0.9426
+#  Enterobacteriaceae - Enterococcaceae     -60.60 245 42.1  -0.247  0.9991
+#  Enterobacteriaceae - Staphylococcaceae  -175.34 173 47.6  -1.012  0.8487
+#  Enterobacteriaceae - Streptococcaceae      1.76 214 45.5   0.008  1.0000
+#  Enterococcaceae - Staphylococcaceae     -114.74 253 42.2  -0.453  0.9910
+#  Enterococcaceae - Streptococcaceae        62.36 283 42.1   0.220  0.9995
+#  Staphylococcaceae - Streptococcaceae     177.10 224 45.4   0.792  0.9315
+
+
+ggplot(aminoglycosideswidemetadatapreBSI, aes(y=sum, x=exp_type, fill=exp_type)) +
+  geom_boxplot() +
+  geom_jitter(width=0.05, alpha=0.5)+
+  theme(
+    axis.text = element_text(size=10),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+scale_y_log10()+scale_fill_manual(values=c("gray26", "red3"))
+ggsave(file="/Users/drewschwartz/Desktop/metagenomicARGsbyclasspreBSIaminoglycosides.pdf")
+
+ggplot(aminoglycosideswidemetadatapreBSI, aes(y=sum, x=Bug1_Family, fill=Bug1_Family)) +
+  geom_boxplot() +
+  geom_jitter(width=0.05, alpha=0.5)+
+  theme(
+    axis.text = element_text(size=10),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+scale_y_log10()
+ggsave(file="/Users/drewschwartz/Desktop/metagenomicARGsbyclasspreBSIaminoglycosidesBug1Family.pdf")
+
+#Vancomycin now
+Vancomycinwide<-abx_geneswide[,grep(pattern="vanc", colnames(abx_geneswide), ignore.case=TRUE)]
+Vancomycinwide[is.na(Vancomycinwide)] <- 0
+Vancomycinwide$sum<-rowSums(Vancomycinwide)
+Vancomycinwide$Sequence.name<-row.names(Vancomycinwide)
+Vancomycinwidemetadata<-join(metadata,Vancomycinwide, by ="Sequence.name")
+
+#Subsetting just to before BSI
+VancomycinwidemetadatapreBSI<-subset(Vancomycinwidemetadata, DPI1<=0)
+VancomycinwidemetadatapreBSIlme<- lmer(sum~exp_type+(1|Subject), data=VancomycinwidemetadatapreBSI)
+anova(VancomycinwidemetadatapreBSIlme)
+# Analysis of Variance Table
+#          npar Sum Sq Mean Sq F value
+# exp_type    1 29.264  29.264  0.3505
+
+TukfitaVancomycinwidemetadatapreBSIlme<-lsmeans(VancomycinwidemetadatapreBSIlme, pairwise~exp_type, adjust="Tukey")
+TukfitaVancomycinwidemetadatapreBSIlme
+# $contrasts
+#  contrast               estimate   SE   df t.ratio p.value
+#  control - experimental    -2.29 3.87 50.8  -0.592  0.5566
+
+VancomycinwidemetadatapreBSIlmeBUG<- lmer(sum~Bug1_Family+(1|Subject), data=VancomycinwidemetadatapreBSI)
+# Analysis of Variance Table
+#             npar Sum Sq Mean Sq F value
+# Bug1_Family    4 88.383  22.096   0.265
+
+TukfitVancomycinwidemetadatapreBSIlmeBUG<-lsmeans(VancomycinwidemetadatapreBSIlmeBUG, pairwise~Bug1_Family, adjust="Tukey")
+TukfitVancomycinwidemetadatapreBSIlmeBUG
+ # contrast                               estimate    SE   df t.ratio p.value
+ # Control - Enterobacteriaceae             -5.191  5.49 48.7  -0.946  0.8775
+ # Control - Enterococcaceae                 0.851  9.78 42.1   0.087  1.0000
+ # Control - Staphylococcaceae              -1.724  6.14 47.7  -0.281  0.9986
+ # Control - Streptococcaceae                1.725  8.25 45.4   0.209  0.9996
+ # Enterobacteriaceae - Enterococcaceae      6.042 10.70 43.0   0.565  0.9795
+ # Enterobacteriaceae - Staphylococcaceae    3.466  7.52 47.9   0.461  0.9904
+ # Enterobacteriaceae - Streptococcaceae     6.916  9.32 46.0   0.742  0.9455
+ # Enterococcaceae - Staphylococcaceae      -2.575 11.05 43.1  -0.233  0.9993
+ # Enterococcaceae - Streptococcaceae        0.874 12.35 43.0   0.071  1.0000
+ # Staphylococcaceae - Streptococcaceae      3.450  9.72 45.9   0.355  0.9965
+
+ggplot(VancomycinwidemetadatapreBSI, aes(y=sum, x=exp_type, fill=exp_type)) +
+  geom_boxplot() +
+  geom_jitter(width=0.05, alpha=0.5)+
+  theme(
+    axis.text = element_text(size=10),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+scale_y_log10()+scale_fill_manual(values=c("gray26", "red3"))
+ggsave(file="/Users/drewschwartz/Desktop/metagenomicARGsbyclasspreBSIvancomycin.pdf")
+
+ggplot(VancomycinwidemetadatapreBSI, aes(y=sum, x=Bug1_Family, fill=Bug1_Family)) +
+  geom_boxplot() +
+  geom_jitter(width=0.05, alpha=0.5)+
+  theme(
+    axis.text = element_text(size=10),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+scale_y_log10()
+ggsave(file="/Users/drewschwartz/Desktop/metagenomicARGsbyclasspreBSIVancomycinBug1Family.pdf")
+
+#Count zeroes
+table(betalactamwidemetadatapreBSI$sum)
+#0 RPKM samples: 49/214
+table(aminoglycosideswidemetadatapreBSI$sum)
+#0 RPKM samples: 88/214
+table(VancomycinwidemetadatapreBSI$sum)
+#0 RPKM samples: 201/214
+```
+
+
+```{r}
+#Plot Fig. 3A#
+#Shortbred Plotting! This first section is to determine the median #of ARGs in the 14d prior to BSI for cases vs. controls
+sample_df = data.frame(samples=unique(abx_genes$sample), count=sapply(unique(abx_genes$sample), function(s) dim(abx_genes[abx_genes$sample == s,])[1]))
+
+sample_df$dpi = metadata$DPI1[match(sample_df$samples, metadata$Sequence.name)]
+sample_df$subject = metadata$Subject[match(sample_df$samples, metadata$Sequence.name)]
+sample_df_dpi_restricted = sample_df[sample_df$dpi <= 0 & sample_df$dpi >= -14,]
+
+subj_collapsed_df = aggregate(sample_df_dpi_restricted$count, list(sample_df_dpi_restricted$subject), median)
+colnames(subj_collapsed_df) = c("subject", "gene_count")
+subj_collapsed_df$exp_type = metadata$exp_type[match(subj_collapsed_df$subject, metadata$Subject)]
+
+w_test = wilcox.test(subj_collapsed_df$gene_count[subj_collapsed_df$exp_type == "control"], subj_collapsed_df$gene_count[subj_collapsed_df$exp_type == "experimental"])
+control_iqr = paste(round(quantile(subj_collapsed_df$gene_count[subj_collapsed_df$exp_type == "control"], c(0.25, 0.5, 0.75), na.rm=T), 1), collapse=",")
+exp_iqr = paste(round(quantile(subj_collapsed_df$gene_count[subj_collapsed_df$exp_type == "experimental"], c(0.25, 0.5, 0.75), na.rm=T), 1), collapse=",")
+ggplot(subj_collapsed_df, aes(y=gene_count, x=exp_type, fill=exp_type)) +
+  geom_boxplot() +
+  geom_jitter(width=0.05, alpha=0.5) +scale_fill_manual(values=c("gray26", "red3"))+
+  ggtitle(paste0("dpi<0, p=", round(w_test$p.value, 3), control_iqr, exp_iqr)) +
+  theme(
+    axis.text = element_text(size=10),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )
+ggsave(file="Manuscript/Supplementary/Individual panels/metagenomic_ARGs.pdf")
+
+#Now to ask if there is a difference in total ARG sum (RPKM)
+abx_geneswide<-abx_genes[-c(2,5:7)]
+abx_geneswide<-reshape(abx_geneswide, idvar="sample", timevar = "gene", direction ="wide")
+abx_geneswide[is.na(abx_geneswide)] <- 0
+rownames(abx_geneswide)=abx_geneswide$sample
+abx_geneswide$sample=NULL
+abx_geneswide$abxSum<-rowSums(abx_geneswide)
+abx_geneswide$Sequence.name<-row.names(abx_geneswide)
+abx_genesmetadata<-join(metadata,abx_geneswide, by ="Sequence.name")
+
+ggplot(abx_genesmetadata, aes(x=dpi_bin, y=abxSum, fill=exp_type)) +
+  geom_boxplot(position=position_dodge(0.7), width=0.5, outlier.shape=NA) +
+  geom_jitter(position=position_jitterdodge(0.1), alpha=0.4) +
+  theme(
+    axis.text.y = element_text(size=10),
+    axis.text.x = element_text(size=10, angle=90, hjust=1, vjust=0.5),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  ) +
+  scale_fill_manual(values=c("gray26", "red3"))+scale_x_discrete(limits=c("< -15", "-15 to -10", "-10 to -5", "-5 to 0", "0 to 5", "5 to 10", "10 to 15", ">15"))
+ggsave(file="Manuscript/Supplementary/Individual panels/metagenomic_ARGs_dpi_bin.pdf")
+
+fitabxsum<- lmer(abxSum~exp_type+dpi_bin + (1|Subject), data=abx_genesmetadata)
+anova(fitabxsum)
+Tukfitabxsum<-lsmeans(fitabxsum, pairwise~exp_type+dpi_bin, adjust="Tukey")
+Tukfitabxsum
+
+capture.output(Tukfitabxsum, file = "Manuscript/Supplementary/Individual panels/Abxgenesumdpi.txt")
+
+abx_genescount<- read.delim("Metagenomics/Shortbred/shortbred_mg_wide_count.csv", sep=",")
+abx_genescount$Sequence.name<-abx_genescount$sample
+abx_genesmetadatacount<-join(metadata,abx_genescount, by ="Sequence.name")
+
+ggplot(abx_genesmetadatacount, aes(x=dpi_bin, y=Count, fill=exp_type)) +
+  geom_boxplot(position=position_dodge(0.7), width=0.5, outlier.shape=NA) +
+  geom_jitter(position=position_jitterdodge(0.1), alpha=0.4) +
+  theme(
+    axis.text.y = element_text(size=10),
+    axis.text.x = element_text(size=10, angle=90, hjust=1, vjust=0.5),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  ) +
+  scale_fill_manual(values=c("gray26", "red3"))+scale_x_discrete(limits=c("< -15", "-15 to -10", "-10 to -5", "-5 to 0", "0 to 5", "5 to 10", "10 to 15", ">15"))
+ggsave(file="Manuscript/Supplementary/Individual panels/metagenomic_ARGscount_dpi_bin.pdf")
+
+fitabxcount<- lmer(Count~exp_type+dpi_bin + (1|Subject), data=abx_genesmetadatacount)
+anova(fitabxcount)
+Tukfitabxcount<-lsmeans(fitabxcount, pairwise~exp_type+dpi_bin, adjust="Tukey")
+Tukfitabxcount
+
+capture.output(Tukfitabxcount, file = "Manuscript/Supplementary/Individual panels/Abxgenecountdpi.txt")
+
+ggplot(abx_genesmetadata, aes(x=ABx_score_sample, y=abxSum)) +
+  geom_point() +
+  theme(
+    axis.text.y = element_text(size=10),
+    axis.text.x = element_text(size=10, angle=90, hjust=1, vjust=0.5),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+geom_smooth(method='lm',formula=y~x)
+ggsave(file="Manuscript/Supplementary/Individual panels/metagenomic_ARGsumvsabxscore.pdf")
+
+ggplot(abx_genesmetadatacount, aes(x=ABx_score_sample, y=Count)) +
+  geom_point() +
+  theme(
+    axis.text.y = element_text(size=10),
+    axis.text.x = element_text(size=10, angle=90, hjust=1, vjust=0.5),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+geom_smooth(method='lm',formula=y~x)
+ggsave(file="Manuscript/Supplementary/Individual panels/metagenomic_ARGcountvsabxscore.pdf")
+
+ggplot(abx_genesmetadata, aes(x=Abx_days, y=abxSum)) +
+  geom_point() +
+  theme(
+    axis.text.y = element_text(size=10),
+    axis.text.x = element_text(size=10, angle=90, hjust=1, vjust=0.5),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+geom_smooth(method='lm',formula=y~x)
+ggsave(file="Manuscript/Supplementary/Individual panels/metagenomic_ARGsumvsabxdays.pdf")
+
+ggplot(abx_genesmetadatacount, aes(x=Abx_days, y=Count)) +
+  geom_point() +
+  theme(
+    axis.text.y = element_text(size=10),
+    axis.text.x = element_text(size=10, angle=90, hjust=1, vjust=0.5),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+geom_smooth(method='lm',formula=y~x)
+ggsave(file="Manuscript/Supplementary/Individual panels/metagenomic_ARGcountvsabxdays.pdf")
+
+abx_genesmetadatacount<-subset(abx_genesmetadatacount,DPI1<60)
+
+ggplot(abx_genesmetadatacount, aes(x=DOL, y=Count)) +
+  geom_point() +
+  theme(
+    axis.text.y = element_text(size=10),
+    axis.text.x = element_text(size=10, angle=90, hjust=1, vjust=0.5),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+geom_smooth(method='lm',formula=y~x)
+ggsave(file="Manuscript/Supplementary/Individual panels/metagenomic_ARGcountvsDOL.pdf")
+
+abx_genesmetadata<-subset(abx_genesmetadata,DPI1<60)
+ggplot(abx_genesmetadata, aes(x=DOL, y=abxSum)) +
+  geom_point() +
+  theme(
+    axis.text.y = element_text(size=10),
+    axis.text.x = element_text(size=10, angle=90, hjust=1, vjust=0.5),
+    axis.title = element_text(size=20),
+    panel.background = element_rect(fill = 'white', colour = 'white'),
+    panel.grid.major = element_line(color="grey95", size=0.7), 
+    panel.grid.minor = element_line(color="grey95", size=0.7),
+    panel.border = element_rect(colour = "black", fill=NA, size=1)
+  )+geom_smooth(method='lm',formula=y~x)
+ggsave(file="Manuscript/Supplementary/Individual panels/metagenomic_ARGsumvsDOL.pdf")
+```
+
+```{r}
+#To create and plot Fig. S9
+#load in genus taxonomy contribution table
+genus_taxa <- read.delim("/Users/annadeveaux/Box Sync/Neonate BSI/Enterotypes/220206_genus/Taxa_contribution_for_R.txt")
+
+palette_all <- grDevices::colors()
+palette_no_grey <- palette_all[grep("gr(a|e)y",
+                                    grDevices::colors(),
+                                    invert=T)]
+n_colors <- 225
+set.seed(267)
+my_palette <- sample(palette_no_grey,n_colors)
+
+spec_taxa %>% 
+  filter(Abundance!=0) %>% 
+  ggplot(aes(Model,Abundance,fill=Taxa))+
+  geom_bar(stat="identity",position="stack")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  scale_fill_manual(values = my_palette)#+
+#+
+
+genus_taxa %>% 
+  filter(Abundance!=0) %>% 
+  ggplot(aes(Model,Abundance,fill=Taxa))+
+  geom_bar(stat="identity",position="stack")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  scale_fill_manual(values = my_palette)
+
+```
